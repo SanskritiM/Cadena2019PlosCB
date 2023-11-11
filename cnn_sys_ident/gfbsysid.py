@@ -11,13 +11,14 @@ import tensorflow as tf
 import hashlib
 import inspect
 import random
-from tensorflow.contrib import layers
-from tensorflow import losses
+import tf_slim as slim
+from tf_slim import losses
+from tf_slim import layers
 from collections import OrderedDict
 from cnn_sys_ident.utils import *
 from cnn_sys_ident.base import Model
 
-
+tf.compat.v1.disable_resource_variables()
     
 class GaborFilterBank(Model):
     def __init__(self, *args, **kwargs):
@@ -92,7 +93,7 @@ class GaborFilterBank(Model):
             def flatten(list_tensor):
                 flatten_tensor = []
                 for si in range(len(list_tensor)):
-                    flatten_tensor.append(tf.layers.flatten(list_tensor[si]))
+                    flatten_tensor.append(layers.flatten(list_tensor[si]))
                 return tf.concat(flatten_tensor, axis = -1)
             
             self.simple_flat = flatten(self.hnn_simple)
@@ -105,17 +106,17 @@ class GaborFilterBank(Model):
             regularizer = lambda w: l1_regularizer_flatten(w, sparsity_readout)  
             
             # Linear regression:
-            self.w_readout = tf.get_variable('w_readout',
+            self.w_readout = tf.compat.v1.get_variable('w_readout',
                                      shape=[self.feature_space.shape[-1], self.data.num_neurons],
-                                     initializer=tf.truncated_normal_initializer(mean=0.0, stddev=0.01),
+                                     initializer=tf.compat.v1.truncated_normal_initializer(mean=0.0, stddev=0.01),
                                      regularizer = regularizer)
             self.h_out       = tf.tensordot(self.feature_space, self.w_readout, [[1],[0]])
-            self.readout_out = tf.layers.batch_normalization(self.h_out)
+            self.readout_out = tf.compat.v1.layers.batch_normalization(self.h_out)
             self.prediction  = tf.nn.elu(self.readout_out - 1.0) + 1.0
             
             self.compute_log_likelihoods(self.prediction, self.responses, self.realresp)
-            self.total_loss = self.get_log_likelihood() + tf.add_n(tf.get_collection(tf.GraphKeys.REGULARIZATION_LOSSES))
-            self.train_step = tf.train.AdamOptimizer(self.learning_rate).minimize(self.total_loss)
+            self.total_loss = self.get_log_likelihood() + tf.add_n(tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.REGULARIZATION_LOSSES))
+            self.train_step = tf.compat.v1.train.AdamOptimizer(self.learning_rate).minimize(self.total_loss)
             
             self.initialize()
     

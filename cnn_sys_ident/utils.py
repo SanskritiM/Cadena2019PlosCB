@@ -10,19 +10,19 @@ import numpy as np
 import os
 from scipy import stats
 import tensorflow as tf
-import tensorflow.contrib.slim as slim
 import hashlib
 import inspect
 import random
-from tensorflow.contrib import layers
-from tensorflow import losses
+import tf_slim as slim
+from tf_slim import losses
+from tf_slim import layers
 from numpy import pi
 from collections import OrderedDict
 
 ###### Regularization Functions and Static Nonlinearities ###########
 
 def smoothness_regularizer_2d(W, weight=1.0):
-    with tf.variable_scope('smoothness'):
+    with tf.compat.v1.variable_scope('smoothness'):
         lap = tf.constant([[0.25, 0.5, 0.25], [0.5, -3.0, 0.5], [0.25, 0.5, 0.25]])
         #lap = np.array([[0,-1.0,0],[-1.0, 4.0,-1],[0,-1.0,0]]).astype(np.float32)
         lap = tf.expand_dims(tf.expand_dims(lap, 2), 3)
@@ -32,20 +32,20 @@ def smoothness_regularizer_2d(W, weight=1.0):
                                        strides=[1, 1, 1, 1], padding='SAME')
         penalty = tf.reduce_sum(tf.reduce_sum(tf.square(W_lap), [1, 2]) / tf.transpose(tf.reduce_sum(tf.square(W), [0, 1])))
         penalty = tf.identity(weight * penalty, name='penalty')
-        tf.add_to_collection('smoothness_regularizer_2d', penalty)
+        tf.compat.v1.add_to_collection('smoothness_regularizer_2d', penalty)
         return penalty
 
 def group_sparsity_regularizer_2d(W, weight=1.0):
-    with tf.variable_scope('group_sparsity'):
+    with tf.compat.v1.variable_scope('group_sparsity'):
         penalty = tf.reduce_sum(tf.sqrt(tf.reduce_sum(tf.square(W), [0, 1])))
         penalty = tf.identity(weight * penalty, name='penalty')
-        tf.add_to_collection('group_sparsity_regularizer_2d', penalty)
+        tf.compat.v1.add_to_collection('group_sparsity_regularizer_2d', penalty)
         return penalty
     
 # Same two regularization functions as above with slight changes for the vgg model:
 
 def smoothness_regularizer_2d_vgg(W, weight=1.0):
-    with tf.variable_scope('smoothness'):
+    with tf.compat.v1.variable_scope('smoothness'):
         lap = np.array([[0,-1.0,0],[-1.0, 4.0,-1],[0,-1.0,0]]).astype(np.float32)
         num_filters = W.get_shape().as_list()[2]
         W_ = tf.transpose(W, perm=[3, 0, 1, 2])
@@ -54,20 +54,20 @@ def smoothness_regularizer_2d_vgg(W, weight=1.0):
                                    strides=[1, 1, 1, 1], padding='SAME')     
         penalty = tf.reduce_mean(tf.reduce_sum(tf.square(W_lap), [1, 2, 3]))
         penalty = tf.identity(weight * penalty, name='penalty')
-        tf.add_to_collection('smoothness_regularizer_2d', penalty)
+        tf.compat.v1.add_to_collection('smoothness_regularizer_2d', penalty)
         return penalty
 
 def group_sparsity_regularizer_2d_vgg(W, weight=1.0):
-    with tf.variable_scope('group_sparsity'):
+    with tf.compat.v1.variable_scope('group_sparsity'):
         penalty = tf.reduce_mean(tf.reduce_sum(tf.sqrt(tf.reduce_sum(tf.square(W),[0,1])),[1]))
         penalty = tf.identity(weight * penalty, name='penalty')
-        tf.add_to_collection('group_sparsity_regularizer_2d', penalty)
+        tf.compat.v1.add_to_collection('group_sparsity_regularizer_2d', penalty)
         return penalty
 
 # Same smoothness regularizer 2d for the LNP model with slight change:
 
 def smoothness_regularizer_2d_lnp(W, weight=1.0):
-    with tf.variable_scope('smoothness'):
+    with tf.compat.v1.variable_scope('smoothness'):
         lap = np.array([[0.25, 0.5, 0.25], [0.5, -3.0, 0.5], [0.25, 0.5, 0.25]]).astype(np.float32)
         num_filters = W.get_shape().as_list()[2]
         W_ = tf.transpose(W, perm=[3, 0, 1, 2])
@@ -76,19 +76,19 @@ def smoothness_regularizer_2d_lnp(W, weight=1.0):
                                    strides=[1, 1, 1, 1], padding='SAME')    
         penalty = tf.reduce_mean(tf.reduce_sum(tf.square(W_lap), [1, 2, 3]))
         penalty = tf.identity(weight * penalty, name='penalty')
-        tf.add_to_collection('smoothness_regularizer_2d', penalty)
+        tf.compat.v1.add_to_collection('smoothness_regularizer_2d', penalty)
         return penalty
     
 def l1_regularizer(W, weight = 1.0):
-    with tf.variable_scope('group_sparsity'):
+    with tf.compat.v1.variable_scope('group_sparsity'):
         penalty = tf.reduce_mean(tf.reduce_sum(tf.abs(W), [0,1,2]))
         penalty = tf.identity(weight * penalty, name='penalty')
-        tf.add_to_collection('l1_regularizer_', penalty)
+        tf.compat.v1.add_to_collection('l1_regularizer_', penalty)
         return penalty
 
 
 def negbino(x, mu, r):
-    return tf.lgamma(r) - tf.lgamma(x + r) - x * tf.log(mu + 1e-5) + (x + r) * tf.log(mu + r) - r * tf.log(r)
+    return tf.lgamma(r) - tf.lgamma(x + r) - x * tf.math.log(mu + 1e-5) + (x + r) * tf.math.log(mu + r) - r * tf.math.log(r)
 
 
 def lin_step(x, a, b):
@@ -109,15 +109,15 @@ def smoothness_regularizer_1d(w, weight=1.0, order=2):
         w = tf.nn.conv1d(w, kernel, 1, 'VALID')
         penalty += tf.reduce_sum(tf.reduce_mean(tf.square(w), 1))
     penalty = tf.identity(weight * penalty, name='penalty')
-    tf.add_to_collection('smoothness_regularizer_1d', penalty)
+    tf.compat.v1.add_to_collection('smoothness_regularizer_1d', penalty)
     return penalty
 
 
 def output_nonlinearity(x, num_neurons, vmin=-3.0, vmax=6.0, num_bins=10, alpha=0, scope='output_nonlinearity'):
-    with tf.variable_scope(scope):
+    with tf.compat.v1.variable_scope(scope):
         elu = tf.nn.elu(x - 1.0) + 1.0
         if alpha == -1:
-            tf.add_to_collection('output_nonlinearity', 0)
+            tf.compat.v1.add_to_collection('output_nonlinearity', 0)
             return elu
         _, neurons = x.get_shape().as_list()
         #neurons = 166
@@ -130,13 +130,13 @@ def output_nonlinearity(x, num_neurons, vmin=-3.0, vmax=6.0, num_bins=10, alpha=
         #v = tf.transpose(tf.concat(2, [tf.reshape(s, [-1, neurons, 1]) for s in segments]), [1, 0, 2])
         v = tf.transpose(tf.concat([tf.reshape(s, [-1, neurons, 1]) for s in segments],axis=2), [1, 0, 2])
         reg = lambda w: smoothness_regularizer_1d(w, weight=alpha, order=2)
-        a = tf.get_variable('weights',
+        a = tf.compat.v1.get_variable('weights',
                             shape=[neurons, num_bins, 1],
                             dtype=tf.float32,
                             initializer=tf.constant_initializer(0),
                             regularizer=reg)
         a = tf.exp(a)
-        tf.add_to_collection('output_nonlinearity', a)
+        tf.compat.v1.add_to_collection('output_nonlinearity', a)
         multiplier = tf.transpose(tf.reshape(tf.matmul(v, a), [neurons, -1]))
         return multiplier * elu
 
@@ -150,10 +150,10 @@ def inv_elu(x):
 # Functions for the GFB:
 # Regularizer:
 def l1_regularizer_flatten(W, weight = 1.0):
-    with tf.variable_scope('sparsity'):
+    with tf.compat.v1.variable_scope('sparsity'):
         penalty = tf.reduce_mean(tf.reduce_sum(tf.abs(W), [0]))
         penalty = tf.identity(weight * penalty, name='penalty')
-        tf.add_to_collection('l1_regularizer_', penalty)
+        tf.compat.v1.add_to_collection('l1_regularizer_', penalty)
         return penalty
 
 def elu(x, *args, **kwargs):
@@ -205,7 +205,7 @@ def vgg19(images, reuse=False, pooling='max', subtract_mean=True, final_endpoint
     layers['dropout7'] =  dropout
     layers['fc8'] = lambda net, name: slim.conv2d(net, 1000, [1, 1], padding='VALID', scope=name)
 
-    with tf.variable_scope('vgg_19', reuse=reuse) as sc:
+    with tf.compat.v1.variable_scope('vgg_19', reuse=reuse) as sc:
         if images.shape[-1] < 3:
             images = tf.tile(images, [1, 1, 1, 3])
         net = images

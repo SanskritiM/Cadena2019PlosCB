@@ -1,0 +1,7 @@
+.research6/
+dist/
+train_logs/
+*.egg-info/
+*.pyc
+
+

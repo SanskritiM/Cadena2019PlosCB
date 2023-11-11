@@ -13,8 +13,8 @@ import tensorflow as tf
 import hashlib
 import inspect
 import random
-from tensorflow.contrib import layers
-from tensorflow import losses
+import tf_slim as slim
+from tf_slim import losses
 
 class Model:
 
@@ -35,21 +35,21 @@ class Model:
         # placeholders
         if data is None: return
         with tf.Graph().as_default() as self.graph:
-            self.is_training = tf.placeholder(tf.bool, name = 'is_training')
-            self.learning_rate = tf.placeholder(tf.float32, name = 'learning_rate')
-            self.images = tf.placeholder(tf.float32, shape=[None, data.px_y, data.px_x, 1], name='images')
-            self.responses = tf.placeholder(tf.float32, shape=[None, data.num_neurons], name='responses')
-            self.realresp  = tf.placeholder(tf.float32, shape=[None, data.num_neurons], name='realresp')
+            self.is_training = tf.compat.v1.placeholder(tf.bool, name = 'is_training')
+            self.learning_rate = tf.compat.v1.placeholder(tf.float32, name = 'learning_rate')
+            self.images = tf.compat.v1.placeholder(tf.float32, shape=[None, data.px_y, data.px_x, 1], name='images')
+            self.responses = tf.compat.v1.placeholder(tf.float32, shape=[None, data.num_neurons], name='responses')
+            self.realresp  = tf.compat.v1.placeholder(tf.float32, shape=[None, data.num_neurons], name='realresp')
 
 
     def initialize(self):
-        loss_summ = tf.summary.scalar('loss_function', self.total_loss)
-        self.summaries = tf.summary.merge_all()
-        self.session = tf.Session(graph=self.graph)
-        self.session.run(tf.global_variables_initializer())
-        self.saver = tf.train.Saver(max_to_keep=100)
-        self.saver_best = tf.train.Saver(max_to_keep=1)
-        self.writer = tf.summary.FileWriter(self.log_dir, max_queue=0, flush_secs=0.1)
+        loss_summ = tf.compat.v1.summary.scalar('loss_function', self.total_loss)
+        self.summaries = tf.compat.v1.summary.merge_all()
+        self.session = tf.compat.v1.Session(graph=self.graph)
+        self.session.run(tf.compat.v1.global_variables_initializer())
+        self.saver = tf.compat.v1.train.Saver(max_to_keep=100)
+        self.saver_best = tf.compat.v1.train.Saver(max_to_keep=1)
+        self.writer = tf.compat.v1.summary.FileWriter(self.log_dir, max_queue=0, flush_secs=0.1)
 
 
     def __del__(self):
@@ -98,7 +98,7 @@ class Model:
               save_steps=500,
               early_stopping_steps=5):
         with self.graph.as_default():
-            update_ops = tf.get_collection(tf.GraphKeys.UPDATE_OPS)
+            update_ops = tf.compat.v1.get_collection(tf.compat.v1.GraphKeys.UPDATE_OPS)
             imgs_val, res_val, realresp_val = self.data.val()
             not_improved = 0
             for i in range(self.global_step + 1, self.global_step + max_iter + 1):
@@ -161,7 +161,7 @@ class Model:
 
 
     def compute_log_likelihoods(self, prediction, response, realresp):
-        self.poisson = tf.reduce_mean(tf.reduce_sum((prediction - response * tf.log(prediction + 1e-9))\
+        self.poisson = tf.reduce_mean(tf.reduce_sum((prediction - response * tf.math.log(prediction + 1e-9))\
                                                     * realresp, axis=0) / tf.reduce_sum(realresp,axis=0))
         
         self.mse = tf.reduce_mean(tf.reduce_sum(tf.square(prediction - response) \
